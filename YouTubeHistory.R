@@ -56,3 +56,119 @@ watchedVideosDataFrame <- data.frame(id = watchedVideoIDs,
 
 watchedVideosDataFrame$time <- 
   mdy_hms(watchedVideosDataFrame$scrapedTime)
+
+# ESTABLISH API KEY AND CONNECTION
+youtubeAPIKey <- "AIzaSyDaU2DMNxXXDT_Z7NXYfPIBKVbGV-QrCE4"
+connectionURL <- 'https://www.googleapis.com/youtube/v3/videos'
+
+# TRYIING QUERY RESPONSE
+# videoID <- "SG2pDkdu5kE"
+# queryParams <- list()
+# queryResponse <- GET(connectionURL,
+#                      query = list(
+#                        key = youtubeAPIKey,
+#                        id = videoID,
+#                        fields = "items(id,snippet(channelId,title,categoryId))",
+#                        part = "snippet"
+#                      ))
+# parsedData <- content(queryResponse, "parsed")
+# str(parsedData)
+
+
+# REQUESTS OPTIONS
+testConnection <- "https://www.google.com/"
+testCount <- 100
+
+# # HTTR TEST
+# system.time(for(i in 1:testCount){ 
+#   result <- GET(testConnection)
+# })
+# 
+# # RCURL Test
+# uris = rep(testConnection, testCount)
+# system.time(txt <-  getURIAsynchronous(uris))
+
+# CURL TEST
+pool <- new_pool()
+for(i in 1:testCount){curl_fetch_multi(testConnection)}
+system.time(out <- multi_run(pool = pool))
+
+
+# CREATE REQUEST AND REMOVE DUPLICATES
+createRequest  <- function(id){
+  paste0(connectionURL,
+         "?key=",youtubeAPIKey,
+         "&id=",id,
+         "&fields=","items(id,snippet(channelId,title,description,categoryId))",
+         "&part=","snippet")
+}
+uniqueWatchedVideoIDs <- unique(watchedVideosDataFrame$id)
+requests <- pblapply(uniqueWatchedVideoIDs, createRequest )
+
+# PARSE OUT RESPONSE
+getMetadataDataFrame <- function(response){
+  rawchar <- rawToChar(response$content)
+  parsedData <- fromJSON(rawchar)
+  data.frame <- cbind(id = parsedData$items$id, parsedData$items$snippet)
+  return(data.frame)
+}
+
+videoMetadataDataFrame <- data.frame(id = c(),
+                                     channelId = c(),
+                                     title = c(),
+                                     description = c(),
+                                     categoryId = c()
+)
+
+# SUCCESS
+addToMetadataDataFrame <- function(response){
+  .GlobalEnv$videoMetadataDataFrame <- rbind(.GlobalEnv$videoMetadataDataFrame,getMetadataDataFrame(response))
+}
+
+# FAIL
+failFunction <- function(request){
+  print("fail")
+}
+
+# GRAB REQUEST RESPONSE FROM MEMORY
+fetchMetadataFromMemory <- function(request){
+  return(getMetadataDataFrame(curl_fetch_memory(request)))
+}
+
+system.time(out <- multi_run(pool = pool)) 
+saveRDS(videoMetadataDataFrame, file = "videoMetadataDataframeAsync1.rds")
+
+length(requests)
+nrow(videoMetadataDataFrame)
+
+listMetadata <- pblapply(requests, fetchMetadataFromMemory)
+
+# COMBINE LIST INTO A DATA FRAME
+videoMetadataDataFrame <- bind_rows(listMetadata)
+saveRDS(videoMetadataDataFrame, file = "videoMetadataDataFrame_memory.rds")
+
+# CATEGORY ID REQUEST
+categoryListURL <- "https://www.googleapis.com/youtube/v3/videoCategories"
+
+categoryResponse <- GET(url = categoryListURL,
+                        query = list(
+                          key = youtubeAPIKey,
+                          regionCode = "us",
+                          part = "snippet"
+                        ))
+parsedCategoryResponse <- content(categoryResponse, "parsed")
+
+
+categoryDataFrame <- data.frame(categoryId=c(), category=c())
+for(item in parsedCategoryResponse$items){
+  categoryDataFrame <<-rbind(categoryDataFrame, 
+                             data.frame(categoryId = item$id, category=item$snippet$title))
+}
+
+categoryDataFrame
+videoMetadata <- merge(x = videoMetadataDataFrame, y = categoryDataFrame, by = "categoryId")
+head(videoMetadata)
+
+# COMBINE WITH WATCH HISTORY
+watchedVideos <- merge(watchedVideosDataFrame , videoMetadata, by="id")
+str(watchedVideos)
