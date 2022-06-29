@@ -58,35 +58,13 @@ watchedVideosDataFrame$time <-
   mdy_hms(watchedVideosDataFrame$scrapedTime)
 
 # ESTABLISH API KEY AND CONNECTION
-youtubeAPIKey <- "AIzaSyDaU2DMNxXXDT_Z7NXYfPIBKVbGV-QrCE4"
+youtubeAPIKey <- # PLACE API KEY HERE
 connectionURL <- 'https://www.googleapis.com/youtube/v3/videos'
-
-# TRYIING QUERY RESPONSE
-# videoID <- "SG2pDkdu5kE"
-# queryParams <- list()
-# queryResponse <- GET(connectionURL,
-#                      query = list(
-#                        key = youtubeAPIKey,
-#                        id = videoID,
-#                        fields = "items(id,snippet(channelId,title,categoryId))",
-#                        part = "snippet"
-#                      ))
-# parsedData <- content(queryResponse, "parsed")
-# str(parsedData)
 
 
 # REQUESTS OPTIONS
 testConnection <- "https://www.google.com/"
 testCount <- 100
-
-# # HTTR TEST
-# system.time(for(i in 1:testCount){ 
-#   result <- GET(testConnection)
-# })
-# 
-# # RCURL Test
-# uris = rep(testConnection, testCount)
-# system.time(txt <-  getURIAsynchronous(uris))
 
 # CURL TEST
 pool <- new_pool()
